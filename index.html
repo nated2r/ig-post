@@ -6,7 +6,9 @@
   <title>專屬 IG 輪播貼文設計台</title>
   <link rel="stylesheet" href="style.css">
   <!-- 依據 Prompt 載入三種字體 -->
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;700;900&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=M+PLUS+Rounded+1c:wght@400;500;700;900&family=ZCOOL+XiaoWei&family=Ma+Shan+Zheng&family=ZCOOL+KuaiLe&family=Playfair+Display:ital,wght@0,600;0,800;1,600&family=Bebas+Neue&family=Caveat:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
@@ -19,6 +21,11 @@
       <div class="panel-header">
         <h1>IG 輪播設計台</h1>
         <p>單擊拖曳文字 / 雙擊即可打字編輯</p>
+        <button class="btn btn-undo" id="btnUndo" disabled title="撤銷最近一次操作">
+          <span class="undo-icon">↶</span>
+          <span class="undo-text">上一步</span>
+          <span class="undo-count" id="undoCount"></span>
+        </button>
       </div>
 
       <!-- 工具區：文字顏色 -->
@@ -77,11 +84,53 @@
         </div>
       </div>
 
+      <!-- 工具區：字體 -->
+      <div class="tool-section">
+        <label>🔤 字體選擇</label>
+        <select id="fontSelect" class="font-select">
+          <option value="'Noto Sans TC', sans-serif" style="font-family:'Noto Sans TC';">Noto Sans TC · 現代黑體（預設）</option>
+          <option value="'Noto Serif TC', serif" style="font-family:'Noto Serif TC';">Noto Serif TC · 古典明體</option>
+          <option value="'Zen Kaku Gothic New', sans-serif" style="font-family:'Zen Kaku Gothic New';">Zen Kaku Gothic · 日系圓黑</option>
+          <option value="'M PLUS Rounded 1c', sans-serif" style="font-family:'M PLUS Rounded 1c';">M PLUS Rounded · 可愛圓體</option>
+          <option value="'ZCOOL XiaoWei', serif" style="font-family:'ZCOOL XiaoWei';">ZCOOL XiaoWei · 纖細優雅</option>
+          <option value="'Ma Shan Zheng', cursive" style="font-family:'Ma Shan Zheng';">Ma Shan Zheng · 毛筆書法</option>
+          <option value="'ZCOOL KuaiLe', cursive" style="font-family:'ZCOOL KuaiLe';">ZCOOL KuaiLe · 活潑粗黑</option>
+          <option value="'Playfair Display', serif" style="font-family:'Playfair Display';">Playfair Display · 高級英文</option>
+          <option value="'Bebas Neue', sans-serif" style="font-family:'Bebas Neue';">Bebas Neue · 海報粗體</option>
+          <option value="'Caveat', cursive" style="font-family:'Caveat';">Caveat · 手寫英文</option>
+        </select>
+
+        <div class="size-controls" style="margin-top:8px;">
+          <button class="btn-micro" id="btnApplyFontBlock">套用選取區塊</button>
+          <button class="btn-micro" id="btnApplyFontAll">全部套用</button>
+        </div>
+
+        <div class="custom-font-row">
+          <label class="btn-micro custom-font-btn" for="customFontInput">＋ 上傳自訂字體</label>
+          <input type="file" id="customFontInput" accept=".ttf,.otf,.woff,.woff2,font/*">
+          <span class="custom-font-hint">支援 .ttf / .otf / .woff</span>
+        </div>
+      </div>
+
       <!-- 工具區：背景設定 -->
       <div class="tool-section">
         <label>🖼️ 插入背景相片 / MP4 影片（每張卡片各自獨立）</label>
         <div class="bg-upload-grid" id="bgUploadGrid">
           <!-- JS 自動生成第 1-7 張的上傳與清除按鈕 -->
+        </div>
+        <div class="overlay-target-row">
+          <span class="overlay-target-label">套用到：</span>
+          <select id="overlayTarget" class="overlay-target-select">
+            <option value="global">🌐 全部套用</option>
+            <option value="1">第 1 張</option>
+            <option value="2">第 2 張</option>
+            <option value="3">第 3 張</option>
+            <option value="4">第 4 張</option>
+            <option value="5">第 5 張</option>
+            <option value="6">第 6 張</option>
+            <option value="7">第 7 張</option>
+          </select>
+          <button id="btnResetOverlay" class="btn-micro overlay-reset-btn" title="此張回歸全域設定">↺</button>
         </div>
         <div class="radio-group" style="margin-bottom:5px; margin-top: 10px;">
           <label class="radio-label"><input type="radio" name="bgOverlay" value="light" checked> <span>明亮遮罩</span></label>
@@ -111,12 +160,19 @@
       
     </aside>
 
-    <!-- 右側畫布 -->
-    <main class="carousel-area" id="carouselWrapper">
-      <div class="carousel-track" id="carouselTrack">
-        <!-- JS 將動態加入 7 張圖卡 -->
-      </div>
-    </main>
+    <!-- 右側畫布（外層非滾動容器 + 內層滾動區） -->
+    <div class="carousel-container">
+      <main class="carousel-area" id="carouselWrapper">
+        <div class="carousel-track" id="carouselTrack">
+          <!-- JS 將動態加入 7 張圖卡 -->
+        </div>
+      </main>
+
+      <!-- 左右導航按鈕 + 頁碼指示器（放在滾動區外面，才會永遠釘在畫面左右） -->
+      <button class="carousel-nav carousel-nav-prev" id="btnPrev" aria-label="上一張" title="上一張（← 鍵）">‹</button>
+      <button class="carousel-nav carousel-nav-next" id="btnNext" aria-label="下一張" title="下一張（→ 鍵）">›</button>
+      <div class="carousel-indicator" id="carouselIndicator">1 / 7</div>
+    </div>
 
   </div>
   

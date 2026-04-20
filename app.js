@@ -2,7 +2,118 @@ document.addEventListener('DOMContentLoaded', () => {
     const carouselTrack = document.getElementById('carouselTrack');
     const carouselWrapper = document.getElementById('carouselWrapper');
     const statusBar = document.getElementById('statusBar');
-    
+
+    // ----------------------------------------
+    // 【0. 上一步（Undo）堆疊 — 多步撤銷】
+    // ----------------------------------------
+    // 紀錄最近 30 步操作，涵蓋：拖曳、文字編輯、背景上傳、背景清除
+    const MAX_HISTORY = 30;
+    const history = [];
+    const btnUndo = document.getElementById('btnUndo');
+    const undoCountEl = document.getElementById('undoCount');
+
+    function pushHistory(action) {
+        history.push(action);
+        if (history.length > MAX_HISTORY) history.shift();
+        updateUndoUI();
+    }
+
+    function updateUndoUI() {
+        if (!btnUndo) return;
+        btnUndo.disabled = history.length === 0;
+        if (undoCountEl) {
+            undoCountEl.textContent = history.length > 0 ? `(${history.length})` : '';
+        }
+    }
+
+    // 捕捉「背景 + slideMedia」的當前狀態（供上傳/清除前快照）
+    function captureBgState(page) {
+        const slide = document.getElementById(`slide-${page}`);
+        if (!slide) return { kind: 'none' };
+        const existing = slideMediaRef();
+        const media = existing[page];
+        if (!media) return { kind: 'none' };
+        if (media.type === 'image') {
+            return { kind: 'image', bgCss: slide.style.backgroundImage };
+        }
+        if (media.type === 'video') {
+            return { kind: 'video', file: media.file };
+        }
+        return { kind: 'none' };
+    }
+
+    // 還原背景狀態（Undo 用）
+    function restoreBgState(page, prev) {
+        const slide = document.getElementById(`slide-${page}`);
+        if (!slide) return;
+        removeSlideMedia(page, { keepInputValue: true });
+        if (prev.kind === 'image') {
+            slide.style.backgroundImage = prev.bgCss;
+            slideMediaRef()[page] = { type: 'image' };
+        } else if (prev.kind === 'video' && prev.file) {
+            const objectUrl = URL.createObjectURL(prev.file);
+            const videoEl = document.createElement('video');
+            videoEl.className = 'slide-bg-video';
+            videoEl.muted = true;
+            videoEl.playsInline = true;
+            videoEl.preload = 'auto';
+            videoEl.src = objectUrl;
+            videoEl.addEventListener('loadedmetadata', () => {
+                try { videoEl.currentTime = 0.01; } catch (_) {}
+            });
+            slide.style.backgroundImage = '';
+            slide.insertBefore(videoEl, slide.firstChild);
+            slideMediaRef()[page] = { type: 'video', videoEl, objectUrl, file: prev.file };
+        }
+    }
+
+    // slideMedia 會在後方【4】區宣告，這裡用 getter 避免時序問題
+    function slideMediaRef() {
+        return slideMedia;
+    }
+
+    function undo() {
+        if (!history.length) return;
+        const action = history.pop();
+        try {
+            if (action.type === 'drag') {
+                applyStyleSnapshot(action.el, action.prevStyle);
+                setStatus('↶ 已還原拖曳位置');
+            } else if (action.type === 'edit') {
+                action.el.innerHTML = action.prevInnerHTML;
+                applyStyleSnapshot(action.el, action.prevStyle);
+                setStatus('↶ 已還原文字內容');
+            } else if (action.type === 'bgChange') {
+                restoreBgState(action.page, action.prev);
+                setStatus(`↶ 已還原第 ${action.page} 張背景`);
+            } else if (action.type === 'styleChange') {
+                applyStyleSnapshot(action.el, action.prevStyle);
+                setStatus('↶ 已還原字體 / 樣式變更');
+            } else if (action.type === 'styleChangeBatch') {
+                action.snapshots.forEach(s => applyStyleSnapshot(s.el, s.prevStyle));
+                setStatus(`↶ 已還原 ${action.snapshots.length} 個區塊的樣式變更`);
+            }
+        } catch (err) {
+            console.error('Undo 失敗：', err);
+            setStatus('⚠️ 撤銷失敗（可能該元素已變更過大）');
+        }
+        updateUndoUI();
+    }
+
+    // 幫元素套回「style 快照字串」（null = 移除 style 屬性）
+    function applyStyleSnapshot(el, snapshot) {
+        if (snapshot === null || snapshot === undefined) {
+            el.removeAttribute('style');
+        } else {
+            el.setAttribute('style', snapshot);
+        }
+    }
+
+    if (btnUndo) {
+        btnUndo.addEventListener('mousedown', (e) => e.preventDefault());
+        btnUndo.addEventListener('click', undo);
+    }
+
     // 初始化 7 張預設圖卡內容
     const defaultContents = [
       { title: "設計師絕對不想告訴你的<br>五個高效排版秘訣", subtitle: "✦ 排版心法", body: "這篇輪播將會教你如何使用<br>極簡元素，打造高級設計感。" },
@@ -19,11 +130,16 @@ document.addEventListener('DOMContentLoaded', () => {
       let dragging = false;
       let moved = false;
       let startX, startY, elStartLeft, elStartTop;
+      let dragPrevStyleSnapshot = null;
+      let editPrevSnapshot = null;
 
       el.addEventListener('mousedown', (e) => {
         if (el.getAttribute('contenteditable') === 'true') return;
         e.stopPropagation();
         e.preventDefault();
+
+        // 先記下「拖曳前」的 style 快照，用於 Undo
+        dragPrevStyleSnapshot = el.getAttribute('style');
 
         if (getComputedStyle(el).position !== 'absolute') {
           const r = el.getBoundingClientRect();
@@ -62,13 +178,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.addEventListener('mouseup', () => {
         if (dragging && moved) {
+          // 有真的拖動過才紀錄 Undo
+          pushHistory({
+            type: 'drag',
+            el,
+            prevStyle: dragPrevStyleSnapshot
+          });
           setStatus('位置已固定。雙擊文字可打字編輯。');
         }
         dragging = false;
+        dragPrevStyleSnapshot = null;
       });
 
       el.addEventListener('dblclick', (e) => {
         e.stopPropagation();
+        // 進入編輯模式前先快照內容與樣式
+        editPrevSnapshot = {
+            innerHTML: el.innerHTML,
+            style: el.getAttribute('style')
+        };
         el.setAttribute('contenteditable', 'true');
         el.focus();
         const sel = window.getSelection();
@@ -81,6 +209,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
       el.addEventListener('blur', () => {
         el.setAttribute('contenteditable', 'false');
+        // 結束編輯時，若內容或樣式有變動才寫入 Undo
+        if (editPrevSnapshot) {
+            const changed =
+                el.innerHTML !== editPrevSnapshot.innerHTML ||
+                el.getAttribute('style') !== editPrevSnapshot.style;
+            if (changed) {
+                pushHistory({
+                    type: 'edit',
+                    el,
+                    prevInnerHTML: editPrevSnapshot.innerHTML,
+                    prevStyle: editPrevSnapshot.style
+                });
+            }
+            editPrevSnapshot = null;
+        }
       });
     }
 
@@ -110,44 +253,75 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   
     // ----------------------------------------
-    // 【1. 拖曳與滾動核心邏輯 (Drag to scroll)】
+    // 【1. 輪播導航（按鈕 + 鍵盤左右鍵）】
     // ----------------------------------------
-    let isDown = false;
-    let startX;
-    let scrollLeft;
-  
-    carouselWrapper.addEventListener('mousedown', (e) => {
-      // 若點擊的是 contenteditable，我們不啟動拖曳，這樣他們才能選字
-      if (e.target.getAttribute('contenteditable') === 'true') return;
-      isDown = true;
-      startX = e.pageX - carouselWrapper.offsetLeft;
-      scrollLeft = carouselWrapper.scrollLeft;
+    const btnPrev = document.getElementById('btnPrev');
+    const btnNext = document.getElementById('btnNext');
+    const indicator = document.getElementById('carouselIndicator');
+    const TOTAL_SLIDES = 7;
+
+    // 依目前 scrollLeft 推算目前聚焦在第幾張
+    function getCurrentSlide() {
+        const slides = carouselTrack.children;
+        if (!slides.length) return 1;
+        const wrapperRect = carouselWrapper.getBoundingClientRect();
+        const centerX = wrapperRect.left + wrapperRect.width / 2;
+        let bestIdx = 0;
+        let bestDist = Infinity;
+        for (let i = 0; i < slides.length; i++) {
+            const r = slides[i].getBoundingClientRect();
+            const dist = Math.abs((r.left + r.width / 2) - centerX);
+            if (dist < bestDist) {
+                bestDist = dist;
+                bestIdx = i;
+            }
+        }
+        return bestIdx + 1; // 回傳 1-based
+    }
+
+    function scrollToSlide(page) {
+        const clamped = Math.max(1, Math.min(TOTAL_SLIDES, page));
+        const target = document.getElementById(`slide-${clamped}`);
+        if (!target) return;
+        target.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+
+    function updateNavUI() {
+        const cur = getCurrentSlide();
+        if (indicator) indicator.textContent = `${cur} / ${TOTAL_SLIDES}`;
+        if (btnPrev) btnPrev.disabled = cur <= 1;
+        if (btnNext) btnNext.disabled = cur >= TOTAL_SLIDES;
+    }
+
+    if (btnPrev) {
+        btnPrev.addEventListener('mousedown', e => e.preventDefault());
+        btnPrev.addEventListener('click', () => scrollToSlide(getCurrentSlide() - 1));
+    }
+    if (btnNext) {
+        btnNext.addEventListener('mousedown', e => e.preventDefault());
+        btnNext.addEventListener('click', () => scrollToSlide(getCurrentSlide() + 1));
+    }
+
+    // 滾動停止後更新指示器 + 按鈕狀態（throttle via rAF）
+    let scrollRaf = null;
+    carouselWrapper.addEventListener('scroll', () => {
+        if (scrollRaf) cancelAnimationFrame(scrollRaf);
+        scrollRaf = requestAnimationFrame(updateNavUI);
     });
-    
-    carouselWrapper.addEventListener('mouseleave', () => {
-      isDown = false;
-    });
-    
-    carouselWrapper.addEventListener('mouseup', () => {
-      isDown = false;
-    });
-    
-    carouselWrapper.addEventListener('mousemove', (e) => {
-      if (!isDown) return;
-      e.preventDefault();
-      const x = e.pageX - carouselWrapper.offsetLeft;
-      const walk = (x - startX) * 2; // 調整拖曳速度
-      carouselWrapper.scrollLeft = scrollLeft - walk;
-    });
-  
+
+    // 初始化指示器狀態（DOM 渲染完後）
+    setTimeout(updateNavUI, 0);
+
     // 鍵盤左右鍵切換
     document.addEventListener('keydown', (e) => {
       // 避免在打字時觸發切換
       if (document.activeElement.getAttribute('contenteditable') === 'true') return;
       if (e.key === 'ArrowRight') {
-        carouselWrapper.scrollBy({ left: 430, behavior: 'smooth' });
+        e.preventDefault();
+        scrollToSlide(getCurrentSlide() + 1);
       } else if (e.key === 'ArrowLeft') {
-        carouselWrapper.scrollBy({ left: -430, behavior: 'smooth' });
+        e.preventDefault();
+        scrollToSlide(getCurrentSlide() - 1);
       }
     });
   
@@ -543,6 +717,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const slide = document.getElementById(`slide-${page}`);
         if (!slide) return;
 
+        // 動作前先快照，供 Undo 還原（若檔案格式不支援，稍後回滾）
+        const prevBg = captureBgState(page);
+
         // 先清掉前一次的媒體（避免圖/影疊著）
         removeSlideMedia(page, { keepInputValue: true });
 
@@ -551,6 +728,7 @@ document.addEventListener('DOMContentLoaded', () => {
             reader.onload = (ev) => {
                 slide.style.backgroundImage = `url(${ev.target.result})`;
                 slideMedia[page] = { type: 'image' };
+                pushHistory({ type: 'bgChange', page, prev: prevBg });
                 setStatus(`✅ 第 ${page} 張背景相片已替換！`);
             };
             reader.readAsDataURL(file);
@@ -571,6 +749,7 @@ document.addEventListener('DOMContentLoaded', () => {
             slide.style.backgroundImage = '';
             slide.insertBefore(videoEl, slide.firstChild);
             slideMedia[page] = { type: 'video', videoEl, objectUrl, file };
+            pushHistory({ type: 'bgChange', page, prev: prevBg });
             setStatus(`✅ 第 ${page} 張已改為影片底圖（網頁上靜態顯示，匯出時輸出 MP4）。`);
             return;
         }
@@ -595,7 +774,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function clearSlideBackground(page) {
+        // 清除前先快照，才能 Undo 回來
+        const prevBg = captureBgState(page);
+        // 若原本就沒背景，不需要寫入 Undo（避免塞垃圾進 history）
+        const hadBg = prevBg.kind !== 'none';
         removeSlideMedia(page);
+        if (hadBg) {
+            pushHistory({ type: 'bgChange', page, prev: prevBg });
+        }
         setStatus(`🗑️ 第 ${page} 張背景已清除。`);
     }
 
@@ -649,22 +835,162 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function updateOverlay() {
-        const mode = document.querySelector('input[name="bgOverlay"]:checked').value;
-        const alpha = overlayOpacity.value;
-        if(opacityVal) opacityVal.innerText = `${Math.round(alpha * 100)}%`;
-        
-        let color = 'rgba(255,255,255,0)';
-        if(mode === 'light') color = `rgba(247, 245, 240, ${alpha})`;
-        if(mode === 'dark') color = `rgba(30, 30, 30, ${alpha})`;
-        
-        document.documentElement.style.setProperty('--overlay-color', color);
+    // 【遮罩狀態：全域 + 每張獨立】
+    const overlayState = {
+        global: { mode: 'light', opacity: 0.85 },
+        perSlide: {} // { 1: {mode, opacity}, ... }
+    };
+    const overlayTargetSelect = document.getElementById('overlayTarget');
+    const btnResetOverlay = document.getElementById('btnResetOverlay');
+
+    function buildOverlayColor(mode, alpha) {
+        if (mode === 'light') return `rgba(247, 245, 240, ${alpha})`;
+        if (mode === 'dark') return `rgba(30, 30, 30, ${alpha})`;
+        return 'rgba(255,255,255,0)';
     }
 
-    if(overlayRadios.length > 0) {
-        overlayRadios.forEach(r => r.addEventListener('change', updateOverlay));
-        overlayOpacity.addEventListener('input', updateOverlay);
-        updateOverlay(); // 初始化套用
+    // 將 overlayState 套用到 DOM：全域設 :root，per-slide 設 inline var
+    function applyOverlayToDom() {
+        const gColor = buildOverlayColor(overlayState.global.mode, overlayState.global.opacity);
+        document.documentElement.style.setProperty('--overlay-color', gColor);
+        for (let p = 1; p <= 7; p++) {
+            const slide = document.getElementById(`slide-${p}`);
+            if (!slide) continue;
+            const per = overlayState.perSlide[p];
+            if (per) {
+                slide.style.setProperty('--slide-overlay-color', buildOverlayColor(per.mode, per.opacity));
+            } else {
+                slide.style.removeProperty('--slide-overlay-color');
+            }
+        }
+    }
+
+    // 依目前下拉選擇，把控制項同步成該目標的狀態
+    function syncControlsToTarget() {
+        const target = overlayTargetSelect.value;
+        const state = target === 'global'
+            ? overlayState.global
+            : (overlayState.perSlide[target] || overlayState.global);
+        const radio = document.querySelector(`input[name="bgOverlay"][value="${state.mode}"]`);
+        if (radio) radio.checked = true;
+        overlayOpacity.value = state.opacity;
+        if (opacityVal) opacityVal.innerText = `${Math.round(state.opacity * 100)}%`;
+
+        // 重置按鈕在全域模式下禁用
+        if (btnResetOverlay) {
+            btnResetOverlay.disabled = target === 'global';
+            btnResetOverlay.style.opacity = target === 'global' ? '0.4' : '1';
+        }
+    }
+
+    // 使用者調整 radio / slider 時，寫入對應目標的狀態
+    function onOverlayControlChange() {
+        const target = overlayTargetSelect.value;
+        const mode = document.querySelector('input[name="bgOverlay"]:checked').value;
+        const alpha = parseFloat(overlayOpacity.value);
+        if (opacityVal) opacityVal.innerText = `${Math.round(alpha * 100)}%`;
+
+        if (target === 'global') {
+            overlayState.global = { mode, opacity: alpha };
+            setStatus(`遮罩已套用到全部卡片：${mode === 'light' ? '明亮' : '暗黑'} ${Math.round(alpha * 100)}%`);
+        } else {
+            overlayState.perSlide[target] = { mode, opacity: alpha };
+            setStatus(`第 ${target} 張遮罩：${mode === 'light' ? '明亮' : '暗黑'} ${Math.round(alpha * 100)}%`);
+        }
+        applyOverlayToDom();
+    }
+
+    if (overlayTargetSelect) {
+        overlayTargetSelect.addEventListener('change', syncControlsToTarget);
+    }
+    if (overlayRadios.length > 0) {
+        overlayRadios.forEach(r => r.addEventListener('change', onOverlayControlChange));
+        overlayOpacity.addEventListener('input', onOverlayControlChange);
+    }
+    if (btnResetOverlay) {
+        btnResetOverlay.addEventListener('mousedown', e => e.preventDefault());
+        btnResetOverlay.addEventListener('click', () => {
+            const target = overlayTargetSelect.value;
+            if (target === 'global') return;
+            delete overlayState.perSlide[target];
+            applyOverlayToDom();
+            syncControlsToTarget();
+            setStatus(`↺ 第 ${target} 張已回歸全域遮罩設定`);
+        });
+    }
+    applyOverlayToDom();
+    syncControlsToTarget();
+
+    // ----------------------------------------
+    // 【5. 字體選擇（10 款內建 + 自訂上傳）】
+    // ----------------------------------------
+    const fontSelect = document.getElementById('fontSelect');
+    const btnApplyFontBlock = document.getElementById('btnApplyFontBlock');
+    const btnApplyFontAll = document.getElementById('btnApplyFontAll');
+    const customFontInput = document.getElementById('customFontInput');
+
+    if (btnApplyFontBlock) {
+        btnApplyFontBlock.addEventListener('mousedown', e => e.preventDefault());
+        btnApplyFontBlock.addEventListener('click', () => {
+            if (!activeBlock) {
+                setStatus('⚠️ 請先雙擊右側要改字體的文字區塊，再選字體');
+                return;
+            }
+            const ff = fontSelect.value;
+            const label = fontSelect.options[fontSelect.selectedIndex].textContent.split(' · ')[0];
+            const prevStyle = activeBlock.getAttribute('style');
+            activeBlock.style.fontFamily = ff;
+            pushHistory({ type: 'styleChange', el: activeBlock, prevStyle });
+            setStatus(`✅ 已套用字體「${label}」到選取區塊`);
+        });
+    }
+
+    if (btnApplyFontAll) {
+        btnApplyFontAll.addEventListener('mousedown', e => e.preventDefault());
+        btnApplyFontAll.addEventListener('click', () => {
+            const ff = fontSelect.value;
+            const label = fontSelect.options[fontSelect.selectedIndex].textContent.split(' · ')[0];
+            const snapshots = [];
+            document.querySelectorAll('.slide .draggable-text').forEach(el => {
+                snapshots.push({ el, prevStyle: el.getAttribute('style') });
+                el.style.fontFamily = ff;
+            });
+            if (snapshots.length) {
+                pushHistory({ type: 'styleChangeBatch', snapshots });
+            }
+            setStatus(`✅ 已將全部 7 張的文字套用字體「${label}」`);
+        });
+    }
+
+    if (customFontInput) {
+        customFontInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const rawName = file.name.replace(/\.[^.]+$/, '');
+            // 字體名要合法：去掉特殊符號，加前綴避免撞到系統字體
+            const safeName = 'Custom_' + rawName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+            setStatus(`⏳ 字體「${rawName}」載入中…`);
+            try {
+                const buffer = await file.arrayBuffer();
+                const fontFace = new FontFace(safeName, buffer);
+                await fontFace.load();
+                document.fonts.add(fontFace);
+
+                // 加入下拉清單
+                const opt = document.createElement('option');
+                opt.value = `'${safeName}', sans-serif`;
+                opt.textContent = `★ ${rawName}（自訂）`;
+                opt.style.fontFamily = `'${safeName}'`;
+                fontSelect.appendChild(opt);
+                fontSelect.value = opt.value;
+
+                setStatus(`✅ 字體「${rawName}」已匯入。雙擊文字後按「套用選取區塊」即可使用。`);
+            } catch (err) {
+                console.error(err);
+                setStatus(`⚠️ 字體載入失敗：${err.message}（請確認是 .ttf / .otf / .woff / .woff2 格式）`);
+            }
+            e.target.value = '';
+        });
     }
 
   });
