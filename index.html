@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>專屬 IG 輪播貼文設計台</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- 依據 Prompt 載入三種字體 -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;700;900&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- 左側面板 -->
+    <aside class="sidebar tools-panel">
+      <!-- 標題區 -->
+      <div class="panel-header">
+        <h1>IG 輪播設計台</h1>
+        <p>單擊拖曳文字 / 雙擊即可打字編輯</p>
+      </div>
+
+      <!-- 工具區：文字顏色 -->
+      <div class="tool-section">
+        <label>🎨 文字與區塊顏色</label>
+        
+        <div class="radio-group" id="colorModeGroup">
+          <label class="radio-label">
+            <input type="radio" name="colorMode" value="selection" checked>
+            <span>選取文字</span>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="colorMode" value="block">
+            <span>整個區塊</span>
+          </label>
+        </div>
+
+        <div class="color-picker-row">
+          <input type="color" id="customColorPicker" value="#3D4F2A">
+          <input type="text" id="customColorHex" value="#3D4F2A" maxlength="7">
+          <button class="btn btn-apply" id="btnApplyColor">套用</button>
+        </div>
+        
+        <!-- 12 個推薦色票 -->
+        <div class="swatches-grid" id="swatchesContainer">
+          <div class="swatch" style="background-color: #3D4F2A;" data-color="#3D4F2A" title="抹茶綠"></div>
+          <div class="swatch" style="background-color: #2D3A3A;" data-color="#2D3A3A" title="深墨色"></div>
+          <div class="swatch" style="background-color: #9C7D5C;" data-color="#9C7D5C" title="鏽棕"></div>
+          <div class="swatch" style="background-color: #D3A766;" data-color="#D3A766" title="暖金"></div>
+          <div class="swatch" style="background-color: #A43F35;" data-color="#A43F35" title="鳥居紅"></div>
+          <div class="swatch" style="background-color: #555866;" data-color="#555866" title="莫蘭迪藍"></div>
+          
+          <div class="swatch" style="background-color: #2A2A2A;" data-color="#2A2A2A" title="純黑"></div>
+          <div class="swatch" style="background-color: #777777;" data-color="#777777" title="深灰"></div>
+          <div class="swatch" style="background-color: #C0B7AF;" data-color="#C0B7AF" title="奶茶色"></div>
+          <div class="swatch" style="background-color: #E6E1DA;" data-color="#E6E1DA" title="暖白"></div>
+          <div class="swatch" style="background-color: #FFFFFF;" data-color="#FFFFFF" title="純白">border</div>
+          <div class="swatch" style="background-color: #F8DF8F;" data-color="#F8DF8F" title="亮黃"></div>
+        </div>
+      </div>
+
+      <!-- 工具區：文字大小 -->
+      <div class="tool-section">
+        <label>📝 字體大小 (整個區塊)</label>
+        
+        <div class="size-controls">
+          <button class="btn-micro" id="btnSizeM2">−2</button>
+          <button class="btn-micro" id="btnSizeM1">−1</button>
+          <button class="btn-micro" id="btnSizeP1">+1</button>
+          <button class="btn-micro" id="btnSizeP2">+2</button>
+        </div>
+
+        <div class="size-input-row">
+          <input type="number" id="fontSizeInput" placeholder="像素 (e.g., 24)">
+          <button class="btn btn-apply" id="btnApplySize">套用大小</button>
+        </div>
+      </div>
+
+      <!-- 工具區：背景設定 -->
+      <div class="tool-section">
+        <label>🖼️ 插入背景相片 / MP4 影片（每張卡片各自獨立）</label>
+        <div class="bg-upload-grid" id="bgUploadGrid">
+          <!-- JS 自動生成第 1-7 張的上傳與清除按鈕 -->
+        </div>
+        <div class="radio-group" style="margin-bottom:5px; margin-top: 10px;">
+          <label class="radio-label"><input type="radio" name="bgOverlay" value="light" checked> <span>明亮遮罩</span></label>
+          <label class="radio-label"><input type="radio" name="bgOverlay" value="dark"> <span>暗黑遮罩</span></label>
+        </div>
+        <div class="size-input-row" style="margin-top: 5px; margin-bottom: 0;">
+          <span style="font-size:12px; color: #555;">遮罩不透明度:</span>
+          <input type="range" id="overlayOpacity" min="0" max="1" step="0.05" value="0.85" style="flex:1; cursor: pointer;">
+          <span id="opacityVal" style="font-size:12px;width:35px;font-weight:bold; color: var(--accent);">85%</span>
+        </div>
+      </div>
+
+      <!-- 狀態提示列 -->
+      <div class="status-bar" id="statusBar">
+        等待操作... (直接點擊右側卡片)
+      </div>
+
+      <!-- 下載區 -->
+      <div class="tool-section dl-section">
+        <label>📥 高畫質匯出 (@3x)</label>
+        <button class="btn btn-primary" id="btnDownloadAll">全部一次下載 (ZIP)</button>
+        <div style="font-size: 12px; color: #777; margin-top:5px;">或單張下載：</div>
+        <div class="dl-grid" id="singleDlGrid">
+          <!-- JS 自動生成第 1-7 張按鈕 -->
+        </div>
+      </div>
+      
+    </aside>
+
+    <!-- 右側畫布 -->
+    <main class="carousel-area" id="carouselWrapper">
+      <div class="carousel-track" id="carouselTrack">
+        <!-- JS 將動態加入 7 張圖卡 -->
+      </div>
+    </main>
+
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>

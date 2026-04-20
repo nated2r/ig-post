@@ -1,0 +1,244 @@
+:root {
+  --overlay-color: rgba(247, 245, 240, 0.85);
+  --bg-color: #2D3A3A; /* 深色背景襯托亮色畫布 */
+  --panel-bg: #FFFFFF;
+  --text-main: #333333;
+  --accent: #9C7D5C;
+  --border: #E0DDD6;
+  --hover-border: #A38F7A;
+  --radius-lg: 16px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans TC', sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  height: 100vh;
+  max-width: 100vw;
+}
+
+/* 左側工具面板 */
+.sidebar {
+  flex: 0 0 320px;
+  background: var(--panel-bg);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  overflow-y: auto;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+  z-index: 10;
+  border-radius: 0 16px 16px 0;
+}
+
+.panel-header {
+  margin-bottom: 2rem;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 1rem;
+}
+.panel-header h1 { font-size: 20px; color: var(--text-main); font-weight: 900;}
+.panel-header p { font-size: 13px; color: #777; margin-top: 5px; }
+
+.tool-section { margin-bottom: 1.5rem; }
+.tool-section label {
+  display: block; font-size: 14px; font-weight: 700; margin-bottom: 0.8rem;
+}
+
+/* 按鈕、輸入框 */
+.radio-group { display: flex; gap: 1rem; margin-bottom: 1rem; }
+.radio-label { font-size: 13px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.color-picker-row, .size-input-row {
+  display: flex; gap: 8px; margin-bottom: 1rem; align-items: center;
+}
+input[type="color"] {
+  border: none; width: 36px; height: 36px; border-radius: 4px; cursor: pointer; padding: 0; background: none;
+}
+input[type="text"], input[type="number"] {
+  flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-family: inherit; font-size: 14px;
+}
+input:focus { outline: none; border-color: var(--accent); }
+
+.swatches-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px;
+}
+.swatch {
+  width: 100%; aspect-ratio: 1; border-radius: 4px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); transition: transform 0.1s;
+}
+.swatch:hover { transform: scale(1.1); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+.size-controls { display: flex; gap: 6px; margin-bottom: 10px; }
+.btn-micro {
+  flex: 1; padding: 6px 0; border: 1px solid var(--border); background: #f5f5f5; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; color: #555;
+}
+.btn-micro:hover { background: #e0e0e0; }
+
+.btn {
+  padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; font-size: 14px; transition: 0.2s;
+}
+.btn-apply { background: #eee; color: #333; }
+.btn-apply:hover { background: #ddd; }
+.btn-primary { background: var(--accent); color: white; width: 100%; padding: 12px; font-size: 15px; }
+.btn-primary:hover { background: #876a4c; }
+
+.dl-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
+.dl-grid .btn-micro { font-weight: normal; }
+
+.status-bar {
+  padding: 10px; background: #f0f4f8; color: #557; border-radius: 4px; font-size: 12px; margin-bottom: 1.5rem; border-left: 3px solid #8FA2C2;
+}
+
+/* 右側拖曳畫布區 */
+.carousel-area {
+  flex: 1;
+  background-color: var(--bg-color);
+  overflow-x: auto;
+  overflow-y: hidden;
+  cursor: grab; /* 提示可拖曳 */
+  display: flex;
+  align-items: center;
+  padding: 0 4rem;
+}
+.carousel-area:active { cursor: grabbing; }
+
+.carousel-track {
+  display: flex;
+  gap: 30px;
+  /* 取消 pointer-events 在拖曳時讓它比較順, 但需要編輯時得打開 */
+}
+
+/* Ig 卡片 */
+.slide {
+  flex: 0 0 400px;
+  height: 500px;
+  background: #F7F5F0;
+  border-radius: 0; /* 若需要導角可設 12px */
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 40px;
+  color: #333;
+  background-size: cover;
+  background-position: center;
+  z-index: 1; /* 確保虛擬元素被壓縮至最底層 */
+}
+
+.slide::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: var(--overlay-color);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.slide-bg-video {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -2;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* ContentEditable 編輯框視覺回饋 */
+[contenteditable="true"] {
+  outline: none;
+  min-height: 1em;
+  border: 1px dashed transparent;
+  transition: border-color 0.2s;
+  cursor: text;
+}
+[contenteditable="true"]:hover {
+  border-color: rgba(163, 143, 122, 0.4);
+}
+[contenteditable="true"]:focus {
+  border-color: var(--accent);
+  background: rgba(255,255,255,0.5);
+}
+
+/* 可拖曳文字區塊 */
+.draggable-text {
+  cursor: move;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.draggable-text[contenteditable="true"] {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.draggable-text:hover:not([contenteditable="true"]) {
+  outline: 1px dashed rgba(163, 143, 122, 0.6);
+  outline-offset: 2px;
+  border-color: transparent;
+}
+
+/* 預設排版樣式 */
+.brand-tag {
+  font-size: 14px; font-weight: 700; color: #9C7D5C; margin-bottom: 20px;
+}
+.slide-title {
+  font-size: 34px; font-weight: 900; line-height: 1.3; margin-bottom: 15px; color: #2A2A2A;
+}
+.slide-subtitle {
+  font-size: 16px; font-weight: 700; color: #9C7D5C; margin-bottom: 10px;
+}
+.slide-body {
+  font-size: 20px; font-weight: 500; line-height: 1.6; color: #444; flex: 1;
+}
+.slide-footer {
+  display: flex; justify-content: center; align-items: center; gap: 8px; position: absolute; bottom: 25px; left: 0; right: 0; pointer-events: none;
+}
+.dot { width: 6px; height: 6px; border-radius: 50%; background: #ccc; }
+.dot.active { background: #9C7D5C; }
+
+/* 每卡獨立背景上傳列 */
+.bg-upload-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.bg-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bg-upload-label {
+  flex: 0 0 52px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #555;
+}
+.bg-upload-btn {
+  flex: 1;
+  text-align: center;
+  line-height: 1.8;
+  display: inline-block;
+  user-select: none;
+}
+.bg-upload-input {
+  display: none;
+}
+.bg-clear-btn {
+  flex: 0 0 28px;
+  padding: 6px 0;
+  color: #A43F35;
+  font-size: 13px;
+}
+.bg-clear-btn:hover {
+  background: #f3d6d3;
+  color: #7a1f17;
+}
