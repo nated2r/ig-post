@@ -174,24 +174,15 @@ document.addEventListener('DOMContentLoaded', () => {
         e.stopPropagation();
         e.preventDefault();
 
+        // 只記錄快照，實際改成絕對定位延後到「真的開始拖」那一刻
         dragPrevStyleSnapshot = el.getAttribute('style');
-        if (getComputedStyle(el).position !== 'absolute') {
-          const r = el.getBoundingClientRect();
-          const sr = slide.getBoundingClientRect();
-          el.style.width = r.width + 'px';
-          el.style.position = 'absolute';
-          el.style.left = (r.left - sr.left) + 'px';
-          el.style.top  = (r.top  - sr.top)  + 'px';
-          el.style.margin = '0';
-        }
-
         dragging = true;
         moved = false;
         pointerId = e.pointerId;
         startX = e.clientX;
         startY = e.clientY;
-        elStartLeft = parseFloat(el.style.left) || 0;
-        elStartTop  = parseFloat(el.style.top)  || 0;
+        elStartLeft = 0;
+        elStartTop = 0;
         if (typeof el.setPointerCapture === 'function') {
           el.setPointerCapture(pointerId);
         }
@@ -225,6 +216,19 @@ document.addEventListener('DOMContentLoaded', () => {
           isTextDragging = true;
           document.body.classList.add('is-dragging-text');
           setStatus('拖曳中… 放開即可固定位置（雙擊或長按可進入打字模式）');
+
+          // 真的開始拖了才切成絕對定位，避免單純點擊造成排版跳動
+          if (getComputedStyle(el).position !== 'absolute') {
+            const r = el.getBoundingClientRect();
+            const sr = slide.getBoundingClientRect();
+            el.style.width = r.width + 'px';
+            el.style.position = 'absolute';
+            el.style.left = (r.left - sr.left) + 'px';
+            el.style.top  = (r.top  - sr.top)  + 'px';
+            el.style.margin = '0';
+          }
+          elStartLeft = parseFloat(el.style.left) || 0;
+          elStartTop  = parseFloat(el.style.top)  || 0;
         }
         if (!moved) return;
         const sr = slide.getBoundingClientRect();
