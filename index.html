@@ -16,11 +16,12 @@
   <div class="app-container">
     
     <!-- 左側面板 -->
-    <aside class="sidebar tools-panel">
+    <aside class="sidebar tools-panel" id="toolsPanel">
       <!-- 標題區 -->
       <div class="panel-header">
         <h1>IG 輪播設計台</h1>
         <p>單擊拖曳文字 / 雙擊即可打字編輯</p>
+        <button class="mobile-panel-close" id="mobilePanelClose" type="button" aria-label="關閉工具面板">收合工具</button>
         <button class="btn btn-undo" id="btnUndo" disabled title="撤銷最近一次操作">
           <span class="undo-icon">↶</span>
           <span class="undo-text">上一步</span>
@@ -29,7 +30,7 @@
       </div>
 
       <!-- 工具區：文字顏色 -->
-      <div class="tool-section">
+      <div class="tool-section" id="section-color" data-mobile-section="color">
         <label>🎨 文字與區塊顏色</label>
         
         <div class="radio-group" id="colorModeGroup">
@@ -68,7 +69,7 @@
       </div>
 
       <!-- 工具區：文字大小 -->
-      <div class="tool-section">
+      <div class="tool-section" id="section-size" data-mobile-section="size">
         <label>📝 字體大小 (整個區塊)</label>
         
         <div class="size-controls">
@@ -85,7 +86,7 @@
       </div>
 
       <!-- 工具區：字體 -->
-      <div class="tool-section">
+      <div class="tool-section" id="section-font" data-mobile-section="font">
         <label>🔤 字體選擇</label>
         <select id="fontSelect" class="font-select">
           <option value="'Noto Sans TC', sans-serif" style="font-family:'Noto Sans TC';">Noto Sans TC · 現代黑體（預設）</option>
@@ -113,7 +114,7 @@
       </div>
 
       <!-- 工具區：背景設定 -->
-      <div class="tool-section">
+      <div class="tool-section" id="section-bg" data-mobile-section="bg">
         <label>🖼️ 插入背景相片 / MP4 影片（每張卡片各自獨立）</label>
         <div class="bg-upload-grid" id="bgUploadGrid">
           <!-- JS 自動生成第 1-7 張的上傳與清除按鈕 -->
@@ -149,7 +150,7 @@
       </div>
 
       <!-- 下載區 -->
-      <div class="tool-section dl-section">
+      <div class="tool-section dl-section" id="section-download" data-mobile-section="download">
         <label>📥 高畫質匯出 (@3x)</label>
         <button class="btn btn-primary" id="btnDownloadAll">全部一次下載 (ZIP)</button>
         <div style="font-size: 12px; color: #777; margin-top:5px;">或單張下載：</div>
@@ -175,6 +176,14 @@
     </div>
 
   </div>
+
+  <nav class="mobile-toolbar" id="mobileToolbar" aria-label="手機工具列">
+    <button class="mobile-tool-btn is-active" data-target-section="color" type="button">顏色</button>
+    <button class="mobile-tool-btn" data-target-section="size" type="button">大小</button>
+    <button class="mobile-tool-btn" data-target-section="font" type="button">字體</button>
+    <button class="mobile-tool-btn" data-target-section="bg" type="button">背景</button>
+    <button class="mobile-tool-btn" data-target-section="download" type="button">下載</button>
+  </nav>
   
   <script src="app.js"></script>
 </body>

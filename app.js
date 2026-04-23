@@ -2,6 +2,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const carouselTrack = document.getElementById('carouselTrack');
     const carouselWrapper = document.getElementById('carouselWrapper');
     const statusBar = document.getElementById('statusBar');
+    const toolsPanel = document.getElementById('toolsPanel');
+    const mobilePanelClose = document.getElementById('mobilePanelClose');
+    const mobileToolButtons = document.querySelectorAll('.mobile-tool-btn');
+    const mobileMq = window.matchMedia('(max-width: 900px)');
+    const mobileSections = {
+        color: document.getElementById('section-color'),
+        size: document.getElementById('section-size'),
+        font: document.getElementById('section-font'),
+        bg: document.getElementById('section-bg'),
+        download: document.getElementById('section-download')
+    };
+    let currentMobileSection = 'color';
+    let isTextDragging = false;
 
     // ----------------------------------------
     // 【0. 上一步（Undo）堆疊 — 多步撤銷】
@@ -125,22 +138,43 @@ document.addEventListener('DOMContentLoaded', () => {
       { title: "想要這套字體與色票？", subtitle: "✦ 準備好升級了嗎", body: "留言「專屬」<br>我把這整套設計原檔<br>免費私訊發給你！" }
     ];
   
-    // 讓文字區塊同時支援「單擊拖曳」與「雙擊編輯」
+    function enterTextEditMode(el) {
+      el.setAttribute('contenteditable', 'true');
+      el.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      range.collapse(false);
+      sel.addRange(range);
+      setStatus('已進入文字編輯模式');
+    }
+
+    // 讓文字區塊同時支援「單擊拖曳」與「雙擊/長按編輯」
     function enableDragAndEdit(el, slide) {
       let dragging = false;
       let moved = false;
+      let pointerId = null;
       let startX, startY, elStartLeft, elStartTop;
       let dragPrevStyleSnapshot = null;
       let editPrevSnapshot = null;
+      let longPressTimer = null;
+      el.style.touchAction = 'none';
 
-      el.addEventListener('mousedown', (e) => {
+      function clearLongPressTimer() {
+        if (longPressTimer) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
+      }
+
+      function beginDrag(e) {
         if (el.getAttribute('contenteditable') === 'true') return;
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault();
 
-        // 先記下「拖曳前」的 style 快照，用於 Undo
         dragPrevStyleSnapshot = el.getAttribute('style');
-
         if (getComputedStyle(el).position !== 'absolute') {
           const r = el.getBoundingClientRect();
           const sr = slide.getBoundingClientRect();
@@ -153,20 +187,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dragging = true;
         moved = false;
+        pointerId = e.pointerId;
         startX = e.clientX;
         startY = e.clientY;
         elStartLeft = parseFloat(el.style.left) || 0;
         elStartTop  = parseFloat(el.style.top)  || 0;
-      });
+        if (typeof el.setPointerCapture === 'function') {
+          el.setPointerCapture(pointerId);
+        }
 
-      document.addEventListener('mousemove', (e) => {
-        if (!dragging) return;
+        if (e.pointerType !== 'mouse') {
+          longPressTimer = setTimeout(() => {
+            if (!dragging || moved) return;
+            dragging = false;
+            pointerId = null;
+            clearLongPressTimer();
+            if (isTextDragging) {
+              isTextDragging = false;
+              document.body.classList.remove('is-dragging-text');
+            }
+            editPrevSnapshot = {
+              innerHTML: el.innerHTML,
+              style: el.getAttribute('style')
+            };
+            enterTextEditMode(el);
+          }, 420);
+        }
+      }
+
+      function moveDrag(e) {
+        if (!dragging || e.pointerId !== pointerId) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        if (!moved && (Math.abs(dx) > 2 || Math.abs(dy) > 2)) {
+        if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+          clearLongPressTimer();
           moved = true;
-          setStatus('拖曳中… 放開滑鼠即可固定位置（雙擊文字可進入打字模式）');
+          isTextDragging = true;
+          document.body.classList.add('is-dragging-text');
+          setStatus('拖曳中… 放開即可固定位置（雙擊或長按可進入打字模式）');
         }
+        if (!moved) return;
         const sr = slide.getBoundingClientRect();
         const maxLeft = sr.width  - el.offsetWidth;
         const maxTop  = sr.height - el.offsetHeight;
@@ -174,42 +234,43 @@ document.addEventListener('DOMContentLoaded', () => {
         const newTop  = Math.max(0, Math.min(maxTop,  elStartTop  + dy));
         el.style.left = newLeft + 'px';
         el.style.top  = newTop  + 'px';
-      });
+      }
 
-      document.addEventListener('mouseup', () => {
+      function endDrag() {
+        clearLongPressTimer();
         if (dragging && moved) {
-          // 有真的拖動過才紀錄 Undo
           pushHistory({
             type: 'drag',
             el,
             prevStyle: dragPrevStyleSnapshot
           });
-          setStatus('位置已固定。雙擊文字可打字編輯。');
+          setStatus('位置已固定。雙擊（桌機）或長按（手機）可打字編輯。');
+        }
+        if (isTextDragging) {
+          isTextDragging = false;
+          document.body.classList.remove('is-dragging-text');
         }
         dragging = false;
+        pointerId = null;
         dragPrevStyleSnapshot = null;
-      });
+      }
+
+      el.addEventListener('pointerdown', beginDrag);
+      el.addEventListener('pointermove', moveDrag);
+      el.addEventListener('pointerup', endDrag);
+      el.addEventListener('pointercancel', endDrag);
 
       el.addEventListener('dblclick', (e) => {
         e.stopPropagation();
-        // 進入編輯模式前先快照內容與樣式
         editPrevSnapshot = {
             innerHTML: el.innerHTML,
             style: el.getAttribute('style')
         };
-        el.setAttribute('contenteditable', 'true');
-        el.focus();
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        sel.addRange(range);
+        enterTextEditMode(el);
       });
 
       el.addEventListener('blur', () => {
         el.setAttribute('contenteditable', 'false');
-        // 結束編輯時，若內容或樣式有變動才寫入 Undo
         if (editPrevSnapshot) {
             const changed =
                 el.innerHTML !== editPrevSnapshot.innerHTML ||
@@ -251,6 +312,64 @@ document.addEventListener('DOMContentLoaded', () => {
         enableDragAndEdit(textEl, slide);
       });
     });
+
+    function setMobileSection(sectionName, shouldOpen = true) {
+      currentMobileSection = mobileSections[sectionName] ? sectionName : 'color';
+      const isMobile = mobileMq.matches;
+
+      Object.entries(mobileSections).forEach(([key, section]) => {
+        if (!section) return;
+        section.classList.toggle('mobile-hidden', isMobile && key !== currentMobileSection);
+      });
+
+      mobileToolButtons.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.targetSection === currentMobileSection);
+      });
+
+      if (isMobile && toolsPanel && shouldOpen) {
+        toolsPanel.classList.add('mobile-open');
+      }
+    }
+
+    function syncResponsivePanelState() {
+      if (!toolsPanel) return;
+      if (mobileMq.matches) {
+        setMobileSection(currentMobileSection, true);
+      } else {
+        toolsPanel.classList.remove('mobile-open');
+        Object.values(mobileSections).forEach((section) => {
+          if (section) section.classList.remove('mobile-hidden');
+        });
+      }
+    }
+
+    mobileToolButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setMobileSection(btn.dataset.targetSection, true);
+      });
+    });
+
+    if (mobilePanelClose) {
+      mobilePanelClose.addEventListener('click', () => {
+        if (mobileMq.matches && toolsPanel) {
+          toolsPanel.classList.remove('mobile-open');
+        }
+      });
+    }
+
+    if (toolsPanel) {
+      const panelHeader = toolsPanel.querySelector('.panel-header');
+      if (panelHeader) {
+        panelHeader.addEventListener('click', (e) => {
+          if (!mobileMq.matches) return;
+          if (e.target.closest('button')) return;
+          toolsPanel.classList.add('mobile-open');
+        });
+      }
+    }
+
+    mobileMq.addEventListener('change', syncResponsivePanelState);
+    syncResponsivePanelState();
   
     // ----------------------------------------
     // 【1. 輪播導航（按鈕 + 鍵盤左右鍵）】
@@ -280,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function scrollToSlide(page) {
+        if (isTextDragging) return;
         const clamped = Math.max(1, Math.min(TOTAL_SLIDES, page));
         const target = document.getElementById(`slide-${clamped}`);
         if (!target) return;
@@ -304,7 +424,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 滾動停止後更新指示器 + 按鈕狀態（throttle via rAF）
     let scrollRaf = null;
+    carouselWrapper.style.touchAction = 'pan-x';
     carouselWrapper.addEventListener('scroll', () => {
+        if (isTextDragging) return;
         if (scrollRaf) cancelAnimationFrame(scrollRaf);
         scrollRaf = requestAnimationFrame(updateNavUI);
     });
@@ -629,9 +751,20 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    function isLikelyMobileDevice() {
+        return mobileMq.matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+    }
+
+    let hasShownMobileVideoWarning = false;
+
     async function downloadCard(pageNum) {
         const media = slideMedia[pageNum];
         if (media && media.type === 'video') {
+            if (isLikelyMobileDevice() && !hasShownMobileVideoWarning) {
+                hasShownMobileVideoWarning = true;
+                setStatus('ℹ️ 手機匯出影片可能較慢或失敗，若卡住建議改用桌機匯出。');
+                await new Promise(res => setTimeout(res, 600));
+            }
             setStatus(`🎬 第 ${pageNum} 張影片匯出中…（請勿關閉分頁）`);
             try {
                 const { blob, ext } = await exportVideoSlide(pageNum);
@@ -662,6 +795,12 @@ document.addEventListener('DOMContentLoaded', () => {
         btnDlAll.innerText = '打包處理中... 速度較慢請稍候';
         
         try {
+            const containsVideo = Object.values(slideMedia).some((m) => m && m.type === 'video');
+            if (containsVideo && isLikelyMobileDevice() && !hasShownMobileVideoWarning) {
+                hasShownMobileVideoWarning = true;
+                setStatus('ℹ️ 手機批次匯出影片耗時較長，建議改用桌機可更穩定。');
+                await new Promise(res => setTimeout(res, 600));
+            }
             const zip = new JSZip();
             for(let i=1; i<=7; i++) {
                 const media = slideMedia[i];
