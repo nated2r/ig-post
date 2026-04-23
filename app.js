@@ -360,6 +360,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (toolsPanel) {
       const panelHeader = toolsPanel.querySelector('.panel-header');
       if (panelHeader) {
+        panelHeader.addEventListener('pointerdown', (e) => {
+          if (!mobileMq.matches) return;
+          if (e.target.closest('button')) return;
+          e.preventDefault();
+        });
         panelHeader.addEventListener('click', (e) => {
           if (!mobileMq.matches) return;
           if (e.target.closest('button')) return;
@@ -496,33 +501,33 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   
-    // 套用顏色
+    // 套用顏色（手機容錯：無選取時自動套用到整個區塊）
     function applyColor(color) {
       const mode = document.querySelector('input[name="colorMode"]:checked').value;
-      if (mode === 'selection' && stashedRange) {
-        // 選取模式
+      const hasRealSelection = stashedRange && !stashedRange.collapsed;
+      if (mode === 'selection' && hasRealSelection) {
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(stashedRange);
-        
-        // 執行替換
         document.execCommand('styleWithCSS', false, true);
         document.execCommand('foreColor', false, color);
-        
         sel.removeAllRanges();
-        setStatus(`已將選取文字變更為 <span style="color:${color};font-weight:bold;">${color}</span>`);
-      } else if (mode === 'block' && activeBlock) {
-        // 區塊模式
+        setStatus(`已將選取文字變更為 ${color}`);
+      } else if (activeBlock) {
         activeBlock.style.color = color;
-        setStatus(`已將整個區塊顏色變更為 <span style="color:${color};font-weight:bold;">${color}</span>`);
+        const note = mode === 'selection' ? '（未反白特定文字，自動套用整個區塊）' : '';
+        setStatus(`已將整個區塊顏色變更為 ${color}${note}`);
       } else {
         setStatus('⚠️ 請先點擊右方文字區，或反白選取要變色的文字。');
       }
     }
-  
-    // UI 點擊事件：避免 blur 流失選取範圍
-    document.querySelectorAll('.sidebar button, .swatch, input[type="radio"]').forEach(el => {
-      el.addEventListener('mousedown', e => { e.preventDefault(); });
+
+    // UI 點擊時不讓焦點從目前編輯中的文字跑走（手機包含 pointerdown 與下方工具列）
+    const focusPreserveSelector =
+      '.sidebar button, .swatch, input[type="radio"], .mobile-tool-btn, .mobile-panel-close';
+    document.querySelectorAll(focusPreserveSelector).forEach((el) => {
+      el.addEventListener('mousedown', (e) => e.preventDefault());
+      el.addEventListener('pointerdown', (e) => e.preventDefault());
     });
   
     // 綁定色票
