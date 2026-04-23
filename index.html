@@ -184,6 +184,19 @@
     <button class="mobile-tool-btn" data-target-section="bg" type="button">背景</button>
     <button class="mobile-tool-btn" data-target-section="download" type="button">下載</button>
   </nav>
+
+  <aside class="quick-tip-dock is-hidden" id="quickTipDock" aria-live="polite">
+    <button class="quick-tip-toggle" id="quickTipToggle" type="button" aria-expanded="false" aria-controls="quickTipPanel">
+      小提示
+    </button>
+    <div class="quick-tip-panel" id="quickTipPanel" hidden>
+      <h3>文字編輯教學</h3>
+      <p>1) 長按文字區塊進入編輯模式。</p>
+      <p>2) 不反白文字時套用顏色：會更換整段文字顏色。</p>
+      <p>3) 先反白文字再套用顏色：只更換選取片段顏色。</p>
+      <p class="quick-tip-hint">再按一次「小提示」即可收起。</p>
+    </div>
+  </aside>
   
   <script src="app.js"></script>
 </body>

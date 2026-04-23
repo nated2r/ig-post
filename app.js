@@ -5,6 +5,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const toolsPanel = document.getElementById('toolsPanel');
     const mobilePanelClose = document.getElementById('mobilePanelClose');
     const mobileToolButtons = document.querySelectorAll('.mobile-tool-btn');
+    const quickTipDock = document.getElementById('quickTipDock');
+    const quickTipToggle = document.getElementById('quickTipToggle');
+    const quickTipPanel = document.getElementById('quickTipPanel');
     const mobileMq = window.matchMedia('(max-width: 900px)');
     const mobileSections = {
         color: document.getElementById('section-color'),
@@ -15,6 +18,37 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     let currentMobileSection = 'color';
     let isTextDragging = false;
+    let isQuickTipOpen = false;
+    let quickTipHintShown = false;
+
+    function setQuickTipOpen(open) {
+      isQuickTipOpen = !!open;
+      if (!quickTipToggle || !quickTipPanel) return;
+      quickTipToggle.setAttribute('aria-expanded', String(isQuickTipOpen));
+      quickTipPanel.hidden = !isQuickTipOpen;
+    }
+
+    function revealQuickTipHint() {
+      if (!quickTipDock) return;
+      if (!quickTipHintShown) {
+        quickTipDock.classList.remove('is-hidden');
+        quickTipHintShown = true;
+      }
+      quickTipDock.classList.remove('is-attention');
+      requestAnimationFrame(() => {
+        quickTipDock.classList.add('is-attention');
+      });
+      setTimeout(() => {
+        quickTipDock.classList.remove('is-attention');
+      }, 1800);
+    }
+
+    if (quickTipToggle) {
+      quickTipToggle.addEventListener('click', () => {
+        if (quickTipDock) quickTipDock.classList.remove('is-hidden');
+        setQuickTipOpen(!isQuickTipOpen);
+      });
+    }
 
     // ----------------------------------------
     // 【0. 上一步（Undo）堆疊 — 多步撤銷】
@@ -173,6 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         e.stopPropagation();
         e.preventDefault();
+        revealQuickTipHint();
 
         // 只記錄快照，實際改成絕對定位延後到「真的開始拖」那一刻
         dragPrevStyleSnapshot = el.getAttribute('style');
@@ -479,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('focusin', (e) => {
       if (e.target.getAttribute('contenteditable') === 'true') {
         activeBlock = e.target;
+        revealQuickTipHint();
         setStatus('區塊已選取：現在可以更改字體大小與區塊顏色');
         
         // 解析當前字體大小
@@ -528,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // UI 點擊時不讓焦點從目前編輯中的文字跑走（手機包含 pointerdown 與下方工具列）
     const focusPreserveSelector =
-      '.sidebar button, .swatch, input[type="radio"], .mobile-tool-btn, .mobile-panel-close';
+      '.sidebar button, .swatch, input[type="radio"], .mobile-tool-btn, .mobile-panel-close, .quick-tip-toggle';
     document.querySelectorAll(focusPreserveSelector).forEach((el) => {
       el.addEventListener('mousedown', (e) => e.preventDefault());
       el.addEventListener('pointerdown', (e) => e.preventDefault());

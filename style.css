@@ -472,6 +472,74 @@ body.is-dragging-text #carouselWrapper {
   overflow-x: hidden;
 }
 
+.quick-tip-dock {
+  position: fixed;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  transition: opacity 0.2s ease;
+}
+
+.quick-tip-dock.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.quick-tip-dock.is-attention .quick-tip-toggle {
+  animation: tipPulse 0.9s ease-in-out 2;
+}
+
+.quick-tip-toggle {
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 10px 14px;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
+}
+
+.quick-tip-panel {
+  width: min(270px, calc(100vw - 24px));
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  padding: 10px 12px;
+}
+
+.quick-tip-panel h3 {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.quick-tip-panel p {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #444;
+  margin-bottom: 4px;
+}
+
+.quick-tip-panel .quick-tip-hint {
+  margin-top: 6px;
+  margin-bottom: 0;
+  color: #7a6956;
+  font-weight: 700;
+}
+
+@keyframes tipPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
 @media (max-width: 900px) {
   body {
     overflow: hidden;
@@ -652,6 +720,18 @@ body.is-dragging-text #carouselWrapper {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+  }
+
+  .quick-tip-dock {
+    top: auto;
+    bottom: 78px;
+    right: 10px;
+    transform: none;
+  }
+
+  .quick-tip-toggle {
+    min-height: 40px;
+    padding: 8px 12px;
   }
 }
 
